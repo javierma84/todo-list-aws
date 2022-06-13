@@ -8,6 +8,22 @@ import os
 import json
 
 @mock_dynamodb2
+def add_client_exception_to_moto(self):
+    print ('Start: add_client_exception_to_moto')
+
+    from src.todoList import get_table
+    from unittest.mock import Mock
+    from botocore.exceptions import ClientError
+    
+    self.table = get_table(self.dynamodb)
+    self.table = Mock()    
+    
+    self.dbException = ClientError({'Error': {'Code': 'MockedException', 'Message': 'This is a Mock'}},
+        os.environ['DYNAMODB_TABLE'])
+    
+    print ('End: add_client_exception_to_moto')
+
+@mock_dynamodb2
 class TestDatabaseFunctions(unittest.TestCase):
     def setUp(self):
         print ('---------------------')
@@ -52,13 +68,12 @@ class TestDatabaseFunctions(unittest.TestCase):
         #self.assertTrue(self.table_local)  # check if we got a result
 
         print('Table name:' + self.table.name)
-        tableName = os.environ['DYNAMODB_TABLE'];
+        tableName = os.environ['DYNAMODB_TABLE']
         # check if the table name is 'ToDo'
         self.assertIn(tableName, self.table.name)
         #self.assertIn('todoTable', self.table_local.name)
         print ('End: test_table_exists')
         
-
     def test_put_todo(self):
         print ('---------------------')
         print ('Start: test_put_todo')
@@ -78,8 +93,13 @@ class TestDatabaseFunctions(unittest.TestCase):
         print ('Start: test_put_todo_error')
         # Testing file functions
         from src.todoList import put_item
-        # Table mock
+        # Table mock      
         self.assertRaises(Exception, put_item("", self.dynamodb))
+        self.assertRaises(Exception, put_item("", self.dynamodb))
+
+        add_client_exception_to_moto(self)
+        self.table.put_item.side_effect = self.dbException
+
         self.assertRaises(Exception, put_item("", self.dynamodb))
         print ('End: test_put_todo_error')
 
@@ -104,6 +124,18 @@ class TestDatabaseFunctions(unittest.TestCase):
             self.text,
             responseGet['text'])
         print ('End: test_get_todo')
+
+    def test_get_todo_exception(self):
+        print ('---------------------')
+        print ('Start: test_get_todo_exception')
+        #from src.todoList import get_table
+        from src.todoList import get_item        
+        
+        add_client_exception_to_moto(self)         
+        self.table.get_item.side_effect = self.dbException
+        self.assertRaises(Exception, get_item("", self.dynamodb))
+
+        print ('End: test_get_todo_exception')
     
     def test_list_todo(self):
         print ('---------------------')
@@ -141,7 +173,6 @@ class TestDatabaseFunctions(unittest.TestCase):
         self.assertEqual(result['text'], updated_text)
         print ('End: test_update_todo')
 
-
     def test_update_todo_error(self):
         print ('---------------------')
         print ('Start: atest_update_todo_error')
@@ -173,6 +204,32 @@ class TestDatabaseFunctions(unittest.TestCase):
                 self.uuid,
                 "",
                 self.dynamodb))
+
+        add_client_exception_to_moto(self)
+        self.table.put_item.side_effect = self.dbException
+
+        self.assertRaises(
+            Exception,
+            update_item(
+                updated_text,
+                "",
+                "false",
+                self.dynamodb))
+        self.assertRaises(
+            TypeError,
+            update_item(
+                "",
+                self.uuid,
+                "false",
+                self.dynamodb))
+        self.assertRaises(
+            Exception,
+            update_item(
+                updated_text,
+                self.uuid,
+                "",
+                self.dynamodb))
+
         print ('End: atest_update_todo_error')
 
     def test_delete_todo(self):
@@ -198,9 +255,13 @@ class TestDatabaseFunctions(unittest.TestCase):
         from src.todoList import delete_item
         # Testing file functions
         self.assertRaises(TypeError, delete_item("", self.dynamodb))
+
+        add_client_exception_to_moto(self)
+        self.table.delete_item.side_effect = self.dbException
+
+        self.assertRaises(TypeError, delete_item("", self.dynamodb))
+
         print ('End: test_delete_todo_error')
-
-
 
 if __name__ == '__main__':
     unittest.main()
